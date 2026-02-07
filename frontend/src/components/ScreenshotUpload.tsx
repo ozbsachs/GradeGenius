@@ -1,6 +1,6 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, Image } from 'lucide-react';
+import { Upload, Image, Clipboard } from 'lucide-react';
 
 interface ScreenshotUploadProps {
   onUpload: (file: File) => void;
@@ -16,6 +16,30 @@ export function ScreenshotUpload({ onUpload, isLoading }: ScreenshotUploadProps)
     },
     [onUpload]
   );
+
+  // Handle paste from clipboard
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (isLoading) return;
+
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            onUpload(file);
+            return;
+          }
+        }
+      }
+    };
+
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, [onUpload, isLoading]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -61,8 +85,12 @@ export function ScreenshotUpload({ onUpload, isLoading }: ScreenshotUploadProps)
             {isDragActive ? 'Drop your screenshot here' : 'Upload your Canvas grades'}
           </p>
           <p className="text-sm text-slate-400">
-            Drag & drop or click to select - PNG, JPG, WebP
+            Drag & drop, click to select, or paste from clipboard
           </p>
+          <div className="flex items-center justify-center gap-1 mt-2 text-xs text-slate-500">
+            <Clipboard className="w-3 h-3" />
+            <span>Ctrl+V / Cmd+V to paste</span>
+          </div>
         </div>
       </div>
     </div>

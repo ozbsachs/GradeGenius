@@ -1,8 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { GradeData } from '../types/grades.js';
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
-
 const EXTRACTION_PROMPT = `You are a grade extraction assistant. Analyze this Canvas/LMS grade screenshot and extract all grade information.
 
 Return a JSON object with this exact structure:
@@ -45,7 +43,13 @@ Rules:
 - Return ONLY valid JSON, no markdown or explanation`;
 
 export async function analyzeScreenshot(imageBase64: string, mimeType: string): Promise<GradeData> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const apiKey = process.env.GOOGLE_API_KEY;
+  if (!apiKey) {
+    throw new Error('GOOGLE_API_KEY environment variable is not set');
+  }
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
   const result = await model.generateContent([
     {

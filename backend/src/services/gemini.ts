@@ -1,9 +1,7 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { GradeData } from '../types/grades.js';
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
 
 const EXTRACTION_PROMPT = `You are a grade extraction assistant. Analyze this Canvas/LMS grade screenshot and extract all grade information.
 
@@ -47,37 +45,23 @@ Rules:
 - Return ONLY valid JSON, no markdown or explanation`;
 
 export async function analyzeScreenshot(imageBase64: string, mimeType: string): Promise<GradeData> {
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 4096,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-              data: imageBase64,
-            },
-          },
-          {
-            type: 'text',
-            text: EXTRACTION_PROMPT,
-          },
-        ],
-      },
-    ],
-  });
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-  const textContent = response.content.find((block) => block.type === 'text');
-  if (!textContent || textContent.type !== 'text') {
-    throw new Error('No text response from Claude');
-  }
+  const result = await model.generateContent([
+    {
+      inlineData: {
+        mimeType: mimeType,
+        data: imageBase64,
+      },
+    },
+    { text: EXTRACTION_PROMPT },
+  ]);
+
+  const response = result.response;
+  const text = response.text();
 
   // Parse JSON from response (handle potential markdown wrapping)
-  let jsonStr = textContent.text.trim();
+  let jsonStr = text.trim();
   if (jsonStr.startsWith('```json')) {
     jsonStr = jsonStr.slice(7);
   }

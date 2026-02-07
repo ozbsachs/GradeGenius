@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { analyzeScreenshot } from '../services/claude.js';
+import { analyzeScreenshot } from '../services/gemini.js';
 import type { AnalysisResponse } from '../types/grades.js';
 
 const router = Router();

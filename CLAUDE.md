@@ -24,18 +24,18 @@ GradeGenius is an AI-powered web app that analyzes Canvas grade screenshots to p
 - Stripe for payments
 
 ### AI Integration
-- Claude API for screenshot analysis and chat
-- Use Claude Haiku for simple extractions, Sonnet for complex queries
+- Google Gemini API for screenshot analysis (free tier available)
+- Using gemini-1.5-flash model for vision extraction
 - Stream chat responses for better UX
 
 ## Architecture
 
-### Core Flow
+### Core Flow (POC)
 1. User uploads Canvas grade screenshot
-2. Image stored in S3 (encrypted)
-3. Claude API extracts grade data as structured JSON
-4. Data stored in PostgreSQL, returned to frontend
-5. User can chat with AI about their grades
+2. Backend sends image to Gemini API
+3. Gemini extracts grade data as structured JSON
+4. Data returned to frontend for display
+5. "What do I need on final" calculator runs locally
 
 ### Key Database Models
 - User (with upload quota, premium status)

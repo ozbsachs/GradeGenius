@@ -4,59 +4,109 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-GradeGenius is an AI-powered web app that analyzes Canvas grade screenshots to provide grade calculations, predictions, and interactive chat-based analysis. Target users are college students with .edu emails.
+GradeGenius is an AI-powered web app that analyzes Canvas grade screenshots to provide grade calculations and "what do I need on my final" predictions. Currently a working POC.
 
-## Tech Stack
+## Commands
+
+```bash
+# Install dependencies
+npm install
+
+# Run development (frontend + backend)
+npm run dev
+
+# Frontend only (http://localhost:5173)
+npm run dev:frontend
+
+# Backend only (http://localhost:3001)
+npm run dev:backend
+
+# Build for production
+npm run build
+
+# Type check
+cd frontend && npx tsc --noEmit
+cd backend && npx tsc --noEmit
+```
+
+## Tech Stack (Current POC)
 
 ### Frontend
 - React 18 + TypeScript + Vite
 - Tailwind CSS
-- Zustand or Redux Toolkit for state
-- React Router v6
-- React Hook Form + Zod validation
 - React Dropzone for image uploads
+- Lucide React for icons
 
 ### Backend
-- Node.js 20+ with Express.js + TypeScript
-- PostgreSQL 15+ with Prisma ORM
-- Passport.js with Google OAuth 2.0
-- AWS S3 or Cloudflare R2 for file storage
-- Stripe for payments
+- Node.js + Express.js + TypeScript
+- Google Gemini API (gemini-2.0-flash) for vision
+- Multer for file uploads
 
-### AI Integration
-- Google Gemini API for screenshot analysis (free tier available)
-- Using gemini-1.5-flash model for vision extraction
-- Stream chat responses for better UX
+## Project Structure
 
-## Architecture
+```
+gradegenius/
+├── frontend/
+│   └── src/
+│       ├── components/
+│       │   ├── ScreenshotUpload.tsx  # Drag/drop/paste upload
+│       │   ├── ImagePreview.tsx      # Multi-image preview + submit
+│       │   ├── LoadingSpinner.tsx    # Progress indicator
+│       │   ├── GradeDisplay.tsx      # Grade visualization
+│       │   └── FinalCalculator.tsx   # "What do I need" calc
+│       ├── api/client.ts             # API calls + multi-image merge
+│       ├── utils/mergeGrades.ts      # Merge multiple screenshots
+│       ├── types/grades.ts
+│       └── App.tsx
+├── backend/
+│   └── src/
+│       ├── routes/analyze.ts         # /api/analyze endpoint
+│       ├── services/gemini.ts        # Gemini API integration
+│       └── types/grades.ts
+├── .env                              # GOOGLE_API_KEY (not committed)
+└── .env.example
+```
 
-### Core Flow (POC)
-1. User uploads Canvas grade screenshot
-2. Backend sends image to Gemini API
-3. Gemini extracts grade data as structured JSON
-4. Data returned to frontend for display
-5. "What do I need on final" calculator runs locally
+## App Flow
 
-### Key Database Models
-- User (with upload quota, premium status)
-- Class (grades, categories, grading scheme as JSON)
-- Screenshot (analysis status, extracted data)
-- ChatMessage (conversation history per class)
-- Payment (Stripe integration)
+```
+Upload/Paste → Preview (1-4 images) → Submit → Loading → Results
+```
 
-### Authentication
-- Google OAuth 2.0 only (no password storage)
-- JWT in HttpOnly cookies (7-day expiry)
-- Optional .edu domain restriction
+1. User uploads or pastes Canvas grade screenshots (supports multiple)
+2. Preview shows thumbnails with add/remove buttons
+3. User clicks "Submit" to analyze
+4. Backend calls Gemini API for each image
+5. Frontend merges results and displays grade + final calculator
 
-## Monetization
-- Free tier: 3 screenshot uploads, 5 chat questions per class
-- Premium ($9.99 one-time): Unlimited for semester
+## Environment Variables
 
-## Security Requirements
-- All user data encrypted at rest and in transit
-- FERPA compliance (no sharing educational records)
-- GDPR compliance (data export/deletion endpoints)
-- Rate limiting: 100 req/15min per IP, 500 req/15min per user
-- File upload validation with magic number checking
-- Automatic PII redaction from screenshots
+```bash
+# .env (in project root)
+GOOGLE_API_KEY=your_gemini_api_key
+PORT=3001
+```
+
+Get free Gemini API key: https://aistudio.google.com/apikey
+
+## Key Features
+
+- **Multi-screenshot support**: Upload up to 4 images, merged automatically
+- **Paste from clipboard**: Ctrl+V / Cmd+V to paste screenshots
+- **Rate limiting**: 5 requests/minute per IP
+- **User-friendly errors**: Technical errors hidden from users
+- **"What do I need" calculator**: Target grade → required final score
+
+## API Endpoint
+
+```
+POST /api/analyze
+Content-Type: multipart/form-data
+Body: screenshot (file)
+
+Response: {
+  success: boolean,
+  data?: GradeData,
+  error?: string
+}
+```

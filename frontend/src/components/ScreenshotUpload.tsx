@@ -3,43 +3,47 @@ import { useDropzone } from 'react-dropzone';
 import { Upload, Image, Clipboard } from 'lucide-react';
 
 interface ScreenshotUploadProps {
-  onUpload: (file: File) => void;
-  isLoading: boolean;
+  onFilesAdded: (files: File[]) => void;
+  disabled?: boolean;
 }
 
-export function ScreenshotUpload({ onUpload, isLoading }: ScreenshotUploadProps) {
+export function ScreenshotUpload({ onFilesAdded, disabled = false }: ScreenshotUploadProps) {
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
       if (acceptedFiles.length > 0) {
-        onUpload(acceptedFiles[0]);
+        onFilesAdded(acceptedFiles);
       }
     },
-    [onUpload]
+    [onFilesAdded]
   );
 
   // Handle paste from clipboard
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
-      if (isLoading) return;
+      if (disabled) return;
 
       const items = e.clipboardData?.items;
       if (!items) return;
 
+      const imageFiles: File[] = [];
       for (const item of items) {
         if (item.type.startsWith('image/')) {
           const file = item.getAsFile();
           if (file) {
-            e.preventDefault();
-            onUpload(file);
-            return;
+            imageFiles.push(file);
           }
         }
+      }
+
+      if (imageFiles.length > 0) {
+        e.preventDefault();
+        onFilesAdded(imageFiles);
       }
     };
 
     document.addEventListener('paste', handlePaste);
     return () => document.removeEventListener('paste', handlePaste);
-  }, [onUpload, isLoading]);
+  }, [onFilesAdded, disabled]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -48,8 +52,8 @@ export function ScreenshotUpload({ onUpload, isLoading }: ScreenshotUploadProps)
       'image/png': ['.png'],
       'image/webp': ['.webp'],
     },
-    maxFiles: 1,
-    disabled: isLoading,
+    multiple: true,
+    disabled,
   });
 
   return (
@@ -62,7 +66,7 @@ export function ScreenshotUpload({ onUpload, isLoading }: ScreenshotUploadProps)
           ? 'border-primary-400 bg-primary-500/10 scale-[1.02]'
           : 'border-slate-600 hover:border-primary-500 hover:bg-slate-800/50'
         }
-        ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}
+        ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
       `}
     >
       <input {...getInputProps()} />
@@ -82,10 +86,13 @@ export function ScreenshotUpload({ onUpload, isLoading }: ScreenshotUploadProps)
 
         <div>
           <p className="text-lg font-medium text-white mb-1">
-            {isDragActive ? 'Drop your screenshot here' : 'Upload your Canvas grades'}
+            {isDragActive ? 'Drop your screenshots here' : 'Upload your Canvas grades'}
           </p>
           <p className="text-sm text-slate-400">
             Drag & drop, click to select, or paste from clipboard
+          </p>
+          <p className="text-sm text-slate-500 mt-1">
+            You can upload multiple screenshots if your grades don't fit in one
           </p>
           <div className="flex items-center justify-center gap-1 mt-2 text-xs text-slate-500">
             <Clipboard className="w-3 h-3" />

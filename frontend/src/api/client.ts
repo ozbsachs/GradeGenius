@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import type { AnalysisResponse, GradeData } from '../types/grades';
 import { mergeGradeData } from '../utils/mergeGrades';
 
@@ -11,13 +11,27 @@ export async function analyzeScreenshot(file: File): Promise<AnalysisResponse> {
   const formData = new FormData();
   formData.append('screenshot', file);
 
-  const response = await api.post<AnalysisResponse>('/analyze', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
-
-  return response.data;
+  try {
+    const response = await api.post<AnalysisResponse>('/analyze', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  } catch (err) {
+    // Extract error message from response if available
+    if (err instanceof AxiosError && err.response?.data) {
+      const data = err.response.data as AnalysisResponse;
+      if (data.error) {
+        return { success: false, error: data.error };
+      }
+    }
+    // Fallback to generic error
+    return {
+      success: false,
+      error: 'Something went wrong. Please try again.',
+    };
+  }
 }
 
 export interface MultiAnalysisProgress {
@@ -35,16 +49,12 @@ export async function analyzeMultipleScreenshots(
   for (let i = 0; i < files.length; i++) {
     onProgress?.({ current: i + 1, total: files.length });
 
-    try {
-      const response = await analyzeScreenshot(files[i]);
+    const response = await analyzeScreenshot(files[i]);
 
-      if (response.success && response.data) {
-        results.push(response.data);
-      } else {
-        errors.push(response.error || `Failed to analyze image ${i + 1}`);
-      }
-    } catch (err) {
-      errors.push(err instanceof Error ? err.message : `Error processing image ${i + 1}`);
+    if (response.success && response.data) {
+      results.push(response.data);
+    } else {
+      errors.push(response.error || `Failed to analyze image ${i + 1}`);
     }
   }
 

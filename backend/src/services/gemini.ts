@@ -1,6 +1,22 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { GradeData } from '../types/grades.js';
 
+// Retry configuration
+const MAX_RETRIES = 3;
+const INITIAL_DELAY_MS = 2000; // 2 seconds
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isRateLimitError(error: unknown): boolean {
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    return msg.includes('429') || msg.includes('rate') || msg.includes('quota') || msg.includes('resource exhausted');
+  }
+  return false;
+}
+
 const EXTRACTION_PROMPT = `You are a grade extraction assistant. Analyze this Canvas/LMS grade screenshot and extract all grade information.
 
 Return a JSON object with this exact structure:
@@ -51,31 +67,53 @@ export async function analyzeScreenshot(imageBase64: string, mimeType: string): 
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
-  const result = await model.generateContent([
-    {
-      inlineData: {
-        mimeType: mimeType,
-        data: imageBase64,
-      },
-    },
-    { text: EXTRACTION_PROMPT },
-  ]);
+  let lastError: Error | null = null;
 
-  const response = result.response;
-  const text = response.text();
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const result = await model.generateContent([
+        {
+          inlineData: {
+            mimeType: mimeType,
+            data: imageBase64,
+          },
+        },
+        { text: EXTRACTION_PROMPT },
+      ]);
 
-  // Parse JSON from response (handle potential markdown wrapping)
-  let jsonStr = text.trim();
-  if (jsonStr.startsWith('```json')) {
-    jsonStr = jsonStr.slice(7);
-  }
-  if (jsonStr.startsWith('```')) {
-    jsonStr = jsonStr.slice(3);
-  }
-  if (jsonStr.endsWith('```')) {
-    jsonStr = jsonStr.slice(0, -3);
+      const response = result.response;
+      const text = response.text();
+
+      // Parse JSON from response (handle potential markdown wrapping)
+      let jsonStr = text.trim();
+      if (jsonStr.startsWith('```json')) {
+        jsonStr = jsonStr.slice(7);
+      }
+      if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.slice(3);
+      }
+      if (jsonStr.endsWith('```')) {
+        jsonStr = jsonStr.slice(0, -3);
+      }
+
+      const gradeData: GradeData = JSON.parse(jsonStr.trim());
+      return gradeData;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      // Only retry on rate limit errors
+      if (isRateLimitError(error) && attempt < MAX_RETRIES - 1) {
+        const delay = INITIAL_DELAY_MS * Math.pow(2, attempt); // Exponential backoff: 2s, 4s, 8s
+        console.log(`Rate limited, retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
+        await sleep(delay);
+        continue;
+      }
+
+      // Non-rate-limit error or final attempt, throw immediately
+      throw lastError;
+    }
   }
 
-  const gradeData: GradeData = JSON.parse(jsonStr.trim());
-  return gradeData;
+  // Should not reach here, but just in case
+  throw lastError || new Error('Failed after retries');
 }
